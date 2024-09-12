@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>테트리스 게임</title>
+    <style>
+        body {
+            background-color: #1a1a1a;
+            color: #ffffff;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            font-family: Arial, sans-serif;
+        }
+        #game-board {
+            border: 2px solid #ffffff;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="game-board" width="300" height="600"></canvas>
+    <script>
+        const canvas = document.getElementById('game-board');
+        const ctx = canvas.getContext('2d');
+        const ROWS = 20;
+        const COLS = 10;
+        const BLOCK_SIZE = 30;
+        const COLORS = ['#FF0D72', '#0DC2FF', '#0DFF72', '#F538FF', '#FF8E0D', '#FFE138', '#3877FF'];
+
+        let board = Array(ROWS).fill().map(() => Array(COLS).fill(0));
+        let piece = getRandomPiece();
+
+        function getRandomPiece() {
+            const pieces = [
+                [[1,1,1,1]],                // I 블록
+                [[1,1],[1,1]],              // O 블록
+                [[1,1,1],[0,1,0]],          // T 블록
+                [[1,1,1],[1,0,0]],          // L 블록
+                [[1,1,1],[0,0,1]],          // J 블록
+                [[1,1,0],[0,1,1]],          // S 블록
+                [[0,1,1],[1,1,0]],          // Z 블록
+                [[1,1,0,0],[0,1,1,1]],      // 긴 L 블록
+                [[0,0,1,1],[1,1,1,0]],      // 긴 J 블록
+                [[1,1,1],[1,0,1]],          // U 블록
+                [[1,0,0],[1,1,1],[0,0,1]],  // 계단 블록
+                [[1,1,1,1],[0,1,0,0]]       // 십자가 블록
+            ];
+            return {
+                shape: pieces[Math.floor(Math.random() * pieces.length)],
+                color: COLORS[Math.floor(Math.random() * COLORS.length)],
+                x: Math.floor(COLS / 2) - 1,
+                y: 0
+            };
+        }
+
+        function draw() {
+            ctx.fillStyle = '#1a1a1a';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            board.forEach((row, y) => {
+                row.forEach((value, x) => {
+                    if (value) {
+                        ctx.fillStyle = COLORS[value - 1];
+                        ctx.fillRect(x * BLOCK_SIZE, y * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
+                        ctx.strokeStyle = '#000000';
+                        ctx.strokeRect(x * BLOCK_SIZE, y * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
+                    }
+                });
+            });
+
+            piece.shape.forEach((row, y) => {
+                row.forEach((value, x) => {
+                    if (value) {
+                        ctx.fillStyle = piece.color;
+                        ctx.fillRect((piece.x + x) * BLOCK_SIZE, (piece.y + y) * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
+                        ctx.strokeStyle = '#000000';
+                        ctx.strokeRect((piece.x + x) * BLOCK_SIZE, (piece.y + y) * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
+                    }
+                });
+            });
+        }
+
+        function moveDown() {
+            piece.y++;
+            if (collision()) {
+                piece.y--;
+                merge();
+                removeRows();
+                piece = getRandomPiece();
+                if (collision()) {
+                    alert('게임 오버!');
+                    board = Array(ROWS).fill().map(() => Array(COLS).fill(0));
+                }
+            }
+        }
+
+        function moveLeft() {
+            piece.x--;
+            if (collision()) {
+                piece.x++;
+            }
+        }
+
+        function moveRight() {
+            piece.x++;
+            if (collision()) {
+                piece.x--;
+            }
+        }
+
+        function rotate() {
+            const rotated = piece.shape[0].map((_, i) => piece.shape.map(row => row[i]).reverse());
+            const prevShape = piece.shape;
+            piece.shape = rotated;
+            if (collision()) {
+                piece.shape = prevShape;
+            }
+        }
+
+        function collision() {
+            return piece.shape.some((row, y) => 
+                row.some((value, x) => 
+                    value && (
+                        board[piece.y + y] === undefined ||
+                        board[piece.y + y][piece.x + x] === undefined ||
+                        board[piece.y + y][piece.x + x]
+                    )
+                )
+            );
+        }
+
+        function merge() {
+            piece.shape.forEach((row, y) => {
+                row.forEach((value, x) => {
+                    if (value) {
+                        board[piece.y + y][piece.x + x] = COLORS.indexOf(piece.color) + 1;
+                    }
+                });
+            });
+        }
+
+        function removeRows() {
+            let rowsToRemove = [];
+            board.forEach((row, y) => {
+                if (row.every(cell => cell)) {
+                    rowsToRemove.push(y);
+                }
+            });
+
+            if (rowsToRemove.length > 0) {
+                animateRowRemoval(rowsToRemove, () => {
+                    rowsToRemove.forEach(y => {
+                        board.splice(y, 1);
+                        board.unshift(Array(COLS).fill(0));
+                    });
+                });
+            }
+        }
+
+        function animateRowRemoval(rows, callback) {
+            let opacity = 1;
+            const animationInterval = setInterval(() => {
+                opacity -= 0.1;
+                rows.forEach(y => {
+                    for (let x = 0; x < COLS; x++) {
+                        if (board[y][x]) {
+                            ctx.clearRect(x * BLOCK_SIZE, y * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
+                            ctx.globalAlpha = opacity;
+                            ctx.fillStyle = COLORS[board[y][x] - 1];
+                            ctx.fillRect(x * BLOCK_SIZE, y * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
+                            ctx.globalAlpha = 1;
+                        }
+                    }
+                });
+
+                if (opacity <= 0) {
+                    clearInterval(animationInterval);
+                    callback();
+                    draw();
+                }
+            }, 50);
+        }
+
+        document.addEventListener('keydown', event => {
+            switch (event.keyCode) {
+                case 37: moveLeft(); break;
+                case 39: moveRight(); break;
+                case 40: moveDown(); break;
+                case 38: rotate(); break;
+            }
+            draw();
+        });
+
+        setInterval(() => {
+            moveDown();
+            draw();
+        }, 500);
+
+        draw();
+    </script>
+</body>
+</html>
